@@ -1,3 +1,4 @@
 target
 .idea
-*.csv
+metastore_db
+*.log

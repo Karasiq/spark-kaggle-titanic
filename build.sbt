@@ -11,6 +11,7 @@ lazy val rootSettings = Seq(
       "com.github.fommil.netlib" % "all" % "1.1.2",
       "org.apache.spark" %% "spark-core" % sparkV,
       "org.apache.spark" %% "spark-sql" % sparkV,
+      "org.apache.spark" %% "spark-hive" % sparkV,
       "org.apache.spark" %% "spark-mllib" % sparkV,
       "com.databricks" %% "spark-csv" % "1.4.0",
       "com.typesafe.akka" %% "akka-actor" % akkaV,
