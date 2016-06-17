@@ -11,5 +11,5 @@ object Main extends App {
   val sqlContext = new HiveContext(sc)
 
   GenderModel.run(sqlContext)
-  RandomForest.run(sqlContext)
+  MachineLearning.run(sqlContext)
 }

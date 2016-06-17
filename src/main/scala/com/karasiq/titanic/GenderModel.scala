@@ -24,19 +24,14 @@ object GenderModel {
     println(s"Proportion of women who survived is ${survivorsProportion(womenOnlyStats)}")
 
     // First model
-    val genderModel = test.select($"PassengerId", $"Sex")
-      .as[(Int, String)]
-      .map {
-        case (id, sex) ⇒
-          (id, sex == "female")
-      }
+    val genderModel = test.withColumn("Predicted", $"Sex" === "female")
     saveModel(genderModel, "gendermodel.csv")
 
     // Second model
     val fareBin = udf((fare: Double) ⇒ math.floor(math.min(39.0, fare) / 10.0).toInt)
     def classModelTable(df: DataFrame) = {
       df
-        .groupBy($"Sex", $"Pclass", fareBin($"Fare").alias("FareBin"))
+        .groupBy($"Sex", $"Pclass", fareBin($"Fare").as("FareBin"))
         .agg(avg($"Survived").alias("SurvivalRate"))
     }
 
@@ -44,8 +39,7 @@ object GenderModel {
       val survivalTable = classModelTable(train)
       test
         .join(survivalTable, test("Sex") === survivalTable("Sex") && test("Pclass") === survivalTable("Pclass") && fareBin(test("Fare")) === survivalTable("FareBin"))
-        .select(test("PassengerId"), survivalTable("SurvivalRate") >= 0.5)
-        .as[(Int, Boolean)]
+        .withColumn("Predicted", survivalTable("SurvivalRate") >= 0.5)
     }
     saveModel(genderClassModel, "genderclassmodel.csv")
   }

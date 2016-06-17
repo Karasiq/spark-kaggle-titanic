@@ -1,7 +1,8 @@
 package com.karasiq.titanic.util
 
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.{Column, DataFrame, Dataset, SQLContext}
+import org.apache.spark.sql.types.{DoubleType, IntegerType}
+import org.apache.spark.sql.{Column, DataFrame, SQLContext}
 
 object DataframeUtils {
   private def median(column: Column) = callUDF("percentile_approx", column, lit(0.5))
@@ -9,30 +10,23 @@ object DataframeUtils {
   implicit class TitanicDataframeOps(private val data: DataFrame) {
     import data.sqlContext.implicits._
 
-    def fillWithMedianValues(column: String): DataFrame = {
+    def fillWithMedianValues(medianSource: DataFrame, column: String): DataFrame = {
       val medianColumn = s"Median($column)"
-      val median = data
-        .groupBy($"Sex", $"Pclass")
-        .agg(DataframeUtils.median(data(column)).as(medianColumn))
+      val median = medianSource
+        .groupBy($"Sex", $"Pclass", $"Embarked")
+        .agg(DataframeUtils.median(medianSource(column)).as(medianColumn))
 
       data
-        .join(median, data("Sex") === median("Sex") && data("Pclass") === median("Pclass"))
+        .join(median, data("Sex") === median("Sex") && data("Pclass") === median("Pclass") && data("Embarked") === median("Embarked"))
         .drop(median("Sex"))
         .drop(median("Pclass"))
+        .drop(median("Embarked"))
         .withColumn(column, when(col(column).isNotNull, col(column)).otherwise(median(medianColumn)))
         .drop(median(medianColumn))
     }
 
-    def fillWithNumbers(column: String): DataFrame = {
-      val columnIsNotEmpty = col(column).isNotNull && (col(column) !== "")
-      val values = data
-        .select(col(column))
-        .filter(columnIsNotEmpty)
-        .as[String]
-        .distinct
-        .collect()
-      val index = udf((value: String) ⇒ values.indexOf(value))
-      data.withColumn(column, when(columnIsNotEmpty, index(col(column))).otherwise(null))
+    def fillWithMedianValues(column: String): DataFrame = {
+      fillWithMedianValues(data, column)
     }
   }
 
@@ -42,14 +36,12 @@ object DataframeUtils {
       .option("header", "true")
       .option("inferSchema", "true")
       .load(file)
+      .cache()
   }
 
-  def saveModel(ds: Dataset[(Int, Boolean)], file: String): Unit = {
-    import ds.sqlContext.implicits._
-    ds.map(kv ⇒ kv._1 → (if (kv._2) 1 else 0))
-      .toDF()
-      .withColumnRenamed("_1", "PassengerId")
-      .withColumnRenamed("_2", "Survived")
+  def saveModel(df: DataFrame, file: String): Unit = {
+    import df.sqlContext.implicits._
+    df.select($"PassengerId", ($"Predicted".cast(DoubleType) >= 0.5).cast(IntegerType).as("Survived"))
       .coalesce(1)
       .write
       .format("com.databricks.spark.csv")
